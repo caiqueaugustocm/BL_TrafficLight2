@@ -1,7 +1,3 @@
-############################
-#EM FASE DE DESENVOLVIMENTO#
-############################
-
 #include "mbed.h"
 
 InterruptIn button(p5);
@@ -10,12 +6,11 @@ DigitalOut yellow_led(p7);
 DigitalOut blue_led(p8);
 
 Timeout timeout;
-// Timeout buttonTimeout;
 Ticker ticker;
 
 enum STATE
 {
-  OFF, ALERT, RED, YELLOW , BLUE, ON
+  OFF, ALERT, RED, YELLOW , BLUE, ON, START
 };
 
 int current_state;
@@ -28,7 +23,7 @@ void defaultState();
 
 void changeRed()
 {
-    printf("red");
+    printf("red\n");
     red_led = 1;
     previe_state = current_state;
     current_state = RED;
@@ -37,38 +32,39 @@ void changeRed()
 
 void changeYellow()
 {
-    printf("yellow");
+    printf("yellow\n");
     yellow_led = 1;
     previe_state = current_state;
     current_state = YELLOW;
-    timeout.attach(&transitionState, 20);
+    timeout.attach(&transitionState, 4);
 }
 
 void changeBlue()
 {
-    printf("blue");
+    printf("blue\n");
     blue_led = 1;
     previe_state = current_state;
     current_state = BLUE;
-    timeout.attach(&transitionState, 4);
+    timeout.attach(&transitionState, 20);
+}
+
+void changeYellow1Hz(){
+    yellow_led = !yellow_led;
+    ticker.attach(changeYellow1Hz, 0.5);
 }
 
 void changeAlert(){
-    printf("alert");
-    yellow_led = !yellow_led;
-    ticker.attach(changeAlert, 0.5);
+    printf("alert\n");
+    previe_state = current_state;
+    current_state = ALERT;
+    changeYellow1Hz();
 }
 
 void changeOff(){
-    printf("off");
+    printf("off\n");
+    previe_state = current_state;
+    current_state = OFF;
     defaultState();
-}
-
-void initialState(){
-    red_led = 1;
-    previe_state = RED;
-    current_state = RED;
-    timeout.attach(&transitionState, 10);
 }
 
 void manual_count_fun(){
@@ -92,7 +88,8 @@ void endCount()
 }
 
 int main() {
-    initialState();
+    current_state = START;
+    previe_state = START;
     transitionState();
     
     button.rise(&startCount);
@@ -100,24 +97,31 @@ int main() {
     
     while(1) {
         wait(1);
-        printf("A %d\n",manual_count);
+        printf("Button Count %d\n",manual_count);
     }
 }
 
 void transitionState(){
     defaultState();
-    if(stateButton == OFF){
+    if(current_state == START && previe_state == START){
+        printf("red init\n");
+        red_led = 1;
+        previe_state = RED;
+        current_state = RED;
+        timeout.attach(&transitionState, 10);
+    }
+    else if(stateButton == OFF){
         if(current_state == RED){
+            changeBlue();
+        }
+        else if(current_state == BLUE){
             changeYellow();
         }
         else if(current_state == YELLOW){
-            changeBlue();
-        }
-        else{//BLUE
             changeRed();
         }
     }
-    else{
+    else if(stateButton == ON){
         stateButton = OFF;
         if(current_state == RED){
             if(manual_count>=3 && manual_count<=10){
@@ -126,6 +130,9 @@ void transitionState(){
             else if(manual_count > 10){
                 changeOff();
             }
+            else{
+                changeRed();
+            }
         }
         else if(current_state == YELLOW){
             if(manual_count>=3 && manual_count<=10){
@@ -133,6 +140,9 @@ void transitionState(){
             }
             else if(manual_count > 10){
                 changeOff();
+            }
+            else{
+                changeYellow();
             }
         }
         else if(current_state == BLUE){
@@ -144,6 +154,9 @@ void transitionState(){
             }
             else if(manual_count>10){
                 changeOff();
+            }
+            else{
+                changeBlue();
             }
         }
         else if(current_state == ALERT){
@@ -161,10 +174,17 @@ void transitionState(){
             else if(manual_count > 10){
                 changeOff();
             }
+            else{
+                current_state = previe_state;
+                changeAlert();
+            }
         }
-        else{//OFF
+        else if(current_state == OFF){
             if(manual_count > 10){
                 changeRed();
+            }
+            else{
+                changeOff();
             }
         }
     }
